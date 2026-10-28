@@ -16,7 +16,7 @@ export type EvidenceItem = {
   sourceLabel: string
   publishedAt?: string
   relevance: string
-  stance: 'supports' | 'contrasts'
+  stance: 'supports' | 'contrasts' | 'unknown'
 }
 
 export type SensoryFactor = {

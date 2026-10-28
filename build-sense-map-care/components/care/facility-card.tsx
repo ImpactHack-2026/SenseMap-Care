@@ -44,7 +44,7 @@ export function FacilityCard({ facility, headingLevel = 'h3' }: { facility: Faci
           </div>
           <Heading className="text-[19px] font-semibold leading-snug text-balance text-foreground">
             <Link
-              href={`/care/${facility.id}`}
+              href={`/care/${encodeURIComponent(facility.id)}`}
               className="after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-none"
             >
               {facility.name}

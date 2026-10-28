@@ -37,8 +37,7 @@ export function FacilityResults({ result, hasFilters }: { result: SearchResult; 
           </span>
           <h2 className="mt-5 text-lg font-semibold text-foreground">No facilities match</h2>
           <p className="mt-2 max-w-md text-[15px] leading-relaxed text-muted-foreground">
-            Try a different search term or remove some filters. SenseMap Care currently includes a small set of demo
-            facilities.
+            Try a different search term or remove some filters.
           </p>
           {hasFilters && (
             <Link href="/care/explore" className={cn(secondaryButton, 'mt-6')}>

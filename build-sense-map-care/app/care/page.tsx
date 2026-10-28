@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { FacilityCard } from '@/components/care/facility-card'
-import { HeroPreview } from '@/components/care/home/hero-preview'
 import { HeroSearch } from '@/components/care/home/hero-search'
 import { HowItWorks } from '@/components/care/home/how-it-works'
 import { QuickFilters } from '@/components/care/home/quick-filters'
@@ -11,9 +10,8 @@ import { listFacilities } from '@/lib/care/data'
 import { cn } from '@/lib/utils'
 
 export default async function CareHomePage() {
-  const facilities = await listFacilities()
-  const previewFacility = facilities.find((f) => f.id === 'willow-bend-family-clinic') ?? facilities[0]
-  const featured = facilities.filter((f) => f.profile).slice(0, 3)
+  const { facilities, mode } = await listFacilities()
+  const featured = facilities.slice(0, 3)
 
   return (
     <>
@@ -36,8 +34,8 @@ export default async function CareHomePage() {
             <HeroSearch />
             <QuickFilters />
           </div>
-          <div className="mx-auto w-full max-w-md lg:max-w-none">
-            <HeroPreview facility={previewFacility} />
+          <div className="rounded-3xl border border-border bg-card p-8 text-muted-foreground">
+            Explore facilities and see what information is available before your visit.
           </div>
         </div>
       </section>
@@ -46,7 +44,7 @@ export default async function CareHomePage() {
         <div className={container}>
           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div className="max-w-2xl">
-              <p className={eyebrow}>Demo facilities</p>
+              <p className={eyebrow}>{mode === 'demo' ? 'Demo facilities' : 'Live facility search'}</p>
               <h2
                 id="featured-heading"
                 className="mt-3 font-serif text-3xl font-medium tracking-tight text-balance sm:text-4xl"
@@ -54,8 +52,7 @@ export default async function CareHomePage() {
                 See how sensory profiles work
               </h2>
               <p className="mt-3 text-[16px] leading-relaxed text-muted-foreground">
-                These fictional facilities show the range of what you might find — from well-documented profiles to
-                ones with limited evidence.
+                {mode === 'demo' ? 'These fictional facilities illustrate how search works.' : 'Explore facilities from the search provider. Sensory information may be limited.'}
               </p>
             </div>
             <Link href="/care/explore" className={cn(textLink, 'inline-flex shrink-0 items-center gap-1.5')}>
