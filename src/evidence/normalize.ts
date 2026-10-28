@@ -4,7 +4,7 @@ import type { EvidenceItem, RelevantSensoryCategory, SensoryCategory } from "../
 const PATTERNS: Array<[RelevantSensoryCategory, RegExp]> = [
   ["noise", /\b(nois(?:e|y)|loud|quiet|sound|sounds|buzzing|beeping|music)\b/i],
   ["lighting", /\b(light(?:ing|s)?|bright|dim|glare|fluorescent)\b/i],
-  ["crowding", /\b(crowd(?:ed|ing|s)?|packed|busy waiting room|full waiting room)\b/i],
+  ["crowding", /\b(crowd(?:ed|ing|s)?|wait(?:ed|s)?|waiting (?:a )?long|packed (?:waiting|lobby|room|facility|area)|busy (?:waiting|lobby)|full (?:waiting|lobby))\b/i],
   ["seating", /\b(seat(?:ing|s)?|chair(?:s)?|bench(?:es)?)\b/i],
   ["smells", /\b(smell(?:s|ed|ing)?|scent(?:s|ed)?|odor(?:s)?|odour(?:s)?|fragrance|perfume)\b/i],
 ];

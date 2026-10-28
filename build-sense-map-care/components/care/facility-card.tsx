@@ -11,7 +11,7 @@ import { card } from './styles'
 
 function FactorRow({ facility, factorKey }: { facility: Facility; factorKey: FactorKey }) {
   const factor = facility.profile?.factors[factorKey]
-  const eligible = factor && factor.score !== null && factor.confidence !== 'limited'
+  const eligible = factor && factor.score !== null
   return (
     <li className="flex items-center gap-3 text-[14px]">
       <span className="w-[68px] shrink-0 text-muted-foreground">{FACTOR_LABELS[factorKey]}</span>

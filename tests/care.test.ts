@@ -63,9 +63,12 @@ describe("SerpAPI provider", () => {
     expect(empty.dataMode).toBe("live");
   });
   test("filters non-healthcare and differently typed results", async () => {
-    const body = { local_results: [livePlace, { place_id: "other", title: "Bakery", type: "Bakery" }, { place_id: "hospital", title: "Hospital", type: "Hospital" }] };
+    const body = { local_results: [livePlace, { place_id: "other", title: "Bakery", type: "Bakery" }, { place_id: "hospital", title: "Hospital", type: ["General hospital", "Hospital"] }] };
     const result = await new SerpApiCareProvider("key", mockFetch(body)).search({ ...search, facilityType: "clinic" });
     expect(result.items.map((item) => item.id)).toEqual(["place-1"]);
+    // Array-typed details are supported in live detail lookup.
+    const detail = await new SerpApiCareProvider("key", mockFetch({ place_results: { place_id: "hospital", title: "Hospital", type: ["General hospital", "Hospital"] } })).getFacility("hospital");
+    expect(detail).toMatchObject({ id: "hospital", type: "hospital", dataMode: "live" });
   });
 });
 
