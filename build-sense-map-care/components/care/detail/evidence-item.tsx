@@ -13,7 +13,7 @@ export function EvidenceItem({ item }: { item: EvidenceItemType }) {
             contrasts ? 'bg-warning text-warning-foreground' : 'bg-sage text-sage-foreground',
           )}
         >
-          {contrasts ? 'Contrasting view' : 'Supporting'}
+          {item.stance === 'unknown' ? 'Reported evidence' : contrasts ? 'Contrasting view' : 'Supporting'}
         </span>
         {item.isIllustrative && (
           <span className="rounded-full border border-dashed border-input px-2.5 py-0.5 text-[12px] font-medium text-muted-foreground">
