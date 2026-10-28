@@ -3,9 +3,9 @@ import type { CareSensoryProfile, ConfidenceLevel, FactorKey, SensoryFactor } fr
 
 export const MIN_ELIGIBLE_FACTORS = 3
 
-/** A factor meets the evidence-sufficiency threshold when it has a score and is not "limited". */
+/** A factor is eligible when directional evidence produced a score; confidence is reported separately. */
 export function isFactorEligible(factor: SensoryFactor): boolean {
-  return factor.score !== null && factor.confidence !== 'limited' && factor.evidence.length > 0
+  return factor.score !== null && factor.evidence.length > 0
 }
 
 export type OverallResult = {

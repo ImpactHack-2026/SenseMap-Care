@@ -18,7 +18,9 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 function classify(place: JsonObject): FacilityType | undefined {
-  const labels = [place.type, ...(Array.isArray(place.types) ? place.types : [])].filter((item): item is string => typeof item === "string").join(" ").toLowerCase();
+  // Real responses may provide type/types as strings or string arrays.
+  const values = [place.type, place.types];
+  const labels = values.flatMap((value) => Array.isArray(value) ? value : [value]).filter((item): item is string => typeof item === "string").join(" ").toLowerCase();
   if (/urgent care|walk.in clinic/.test(labels)) return "urgent_care";
   if (/hospital|medical center/.test(labels)) return "hospital";
   if (/primary care|family (practice|physician|medicine)|general practitioner/.test(labels)) return "primary_care";
@@ -49,31 +51,41 @@ function normalize(value: unknown): CareFacility | null {
   };
 }
 
+/** Shared SerpAPI request with timeout, quota, status and malformed-body handling. */
+export async function serpRequest(
+  key: string,
+  fetcher: (input: URL, init: RequestInit) => Promise<Response>,
+  params: Record<string, string>,
+  label = "care provider",
+): Promise<JsonObject> {
+  const url = new URL("https://serpapi.com/search.json");
+  url.search = new URLSearchParams({ ...params, api_key: key }).toString();
+  let response: Response;
+  try {
+    response = await fetcher(url, { signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new AppError("UPSTREAM_ERROR", `The ${label} timed out.`);
+    }
+    throw new AppError("UPSTREAM_ERROR", `The ${label} is unavailable.`);
+  }
+  if (response.status === 429) throw new AppError("UPSTREAM_ERROR", `The ${label} quota or rate limit was reached.`);
+  if (!response.ok) throw new AppError("UPSTREAM_ERROR", `The ${label} request failed.`);
+  let body: JsonObject | undefined;
+  try { body = object(await response.json()); } catch { /* handled below */ }
+  if (!body) throw new AppError("UPSTREAM_ERROR", `The ${label} returned a malformed response.`);
+  if (body.error) throw new AppError("UPSTREAM_ERROR", `The ${label} could not complete the request.`);
+  const metadata = object(body.search_metadata);
+  if (metadata?.status && metadata.status !== "Success") throw new AppError("UPSTREAM_ERROR", `The ${label} did not complete the request.`);
+  return body;
+}
+
 export class SerpApiCareProvider implements CareProvider {
   readonly dataMode = "live" as const;
   constructor(private readonly key: string, private readonly fetcher: (input: URL, init: RequestInit) => Promise<Response> = fetch) {}
 
-  private async request(params: Record<string, string>): Promise<JsonObject> {
-    const url = new URL("https://serpapi.com/search.json");
-    url.search = new URLSearchParams({ engine: "google_maps", ...params, api_key: this.key }).toString();
-    let response: Response;
-    try {
-      response = await this.fetcher(url, { signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
-    } catch (error) {
-      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
-        throw new AppError("UPSTREAM_ERROR", "The care provider timed out.");
-      }
-      throw new AppError("UPSTREAM_ERROR", "The care provider is unavailable.");
-    }
-    if (response.status === 429) throw new AppError("UPSTREAM_ERROR", "The care provider quota or rate limit was reached.");
-    if (!response.ok) throw new AppError("UPSTREAM_ERROR", "The care provider request failed.");
-    let body: JsonObject | undefined;
-    try { body = object(await response.json()); } catch { /* handled below */ }
-    if (!body) throw new AppError("UPSTREAM_ERROR", "The care provider returned a malformed response.");
-    if (body.error) throw new AppError("UPSTREAM_ERROR", "The care provider could not complete the request.");
-    const metadata = object(body.search_metadata);
-    if (metadata?.status && metadata.status !== "Success") throw new AppError("UPSTREAM_ERROR", "The care provider did not complete the request.");
-    return body;
+  private request(params: Record<string, string>): Promise<JsonObject> {
+    return serpRequest(this.key, this.fetcher, { engine: "google_maps", ...params });
   }
 
   async search({ query, facilityType, pagination }: FacilitySearch): Promise<CareSearchResult> {

@@ -10,11 +10,20 @@ const CATEGORIES = Object.keys(FACTOR_WEIGHTS) as RelevantSensoryCategory[];
 
 /** Each rule is a complete, category-specific phrase. Ambiguous, negated, or conflicting text is not scored. */
 const RULES: Record<RelevantSensoryCategory, { positive: RegExp; negative: RegExp }> = {
-  noise: { positive: /\b(?:quiet|peaceful|not noisy|not loud)\b/i, negative: /\b(?:noisy|loud|buzzing|beeping)\b/i },
-  lighting: { positive: /\b(?:dim lighting|dim lights|soft lighting|soft lights|lighting was dim|lights were dim)\b/i, negative: /\b(?:bright lighting|bright lights|lighting was bright|lights were bright|glare|fluorescent)\b/i },
-  crowding: { positive: /\b(?:not crowded|uncrowded|empty waiting room|waiting room was empty)\b/i, negative: /\b(?:crowded|packed|full waiting room|waiting room was full)\b/i },
-  seating: { positive: /\b(?:seats? (?:were|was) available|chairs? (?:were|was) available|plenty of (?:chairs|seats)|seating was available)\b/i, negative: /\b(?:no seats|no chairs|no seating|seating was unavailable|chairs were unavailable)\b/i },
-  smells: { positive: /\b(?:no (?:strong )?(?:smell|odor|odour|scent)|fragrance.free|unscented)\b/i, negative: /\b(?:strong|noticeable|overwhelming) (?:smell|odor|odour|scent|fragrance)\b/i },
+  noise: { positive: /\b(?:quiet|peaceful|silent|calm|not noisy|not loud)\b/i, negative: /\b(?:noisy|loud|blaring|loud music|hear (?:everything|conversations|each other))\b/i },
+  lighting: { positive: /\b(?:dim(?:mer)? lighting|dim(?:mer)? lights|soft lighting|soft lights|low lighting|lighting was dim|lights were dim)\b/i, negative: /\b(?:bright(?:er)? lighting|bright(?:er)? lights|lighting was bright|lights were bright|harsh (?:light|lighting)|glare|fluorescent)\b/i },
+  crowding: {
+    positive: /\b(?:not crowded|uncrowded|empty (?:waiting|lobby|room)|short wait|quick wait|no wait|little wait|in and out (?:quickly|fast)|waited (?:only|just|less than))\b/i,
+    negative: /\b(?:crowded|crowding|packed (?:waiting|lobby|room|facility|area)|(?:waiting|lobby|waiting room) (?:was|were|is|are) (?:busy|full|packed)|long wait|long time (?:waiting|in (?:the )?(?:waiting|lobby))|hours? (?:of )?(?:wait|waiting)|waited (?:over|more than|an?|about) (?:an? |an hour|hour|30 minutes|two hours)|busy (?:waiting|lobby))\b|wait(?:ed|ing)?[^.!?]{0,24}\b(?:[3-9]\d|1\d\d) minutes\b/i,
+  },
+  seating: {
+    positive: /\b(?:seats? (?:were|was) available|chairs? (?:were|was) available|plenty of (?:chairs|seats)|seating (?:was|were) available|ample seating)\b/i,
+    negative: /\b(?:no (?:seats|chairs|seating)|nowhere to sit|seating (?:was|were) (?:limited|unavailable|tight)|seating.{0,24}closely together|cramped seating)\b/i,
+  },
+  smells: {
+    positive: /\b(?:no (?:strong )?(?:smell|odors?|odours?|scent)|fragrance.free|unscented)\b/i,
+    negative: /\b(?:strong|noticeable|overwhelming|lingering|bad) (?:smell|odors?|odours?|scent|fragrance)\b/i,
+  },
 };
 
 export interface SensoryAnalyzer {
@@ -28,16 +37,44 @@ function validItem(item: EvidenceItem, result: EvidenceResult): boolean {
   try { const url = new URL(item.sourceUrl); return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password; } catch { return false; }
 }
 
+/** Negation or hedging in the four words before a match makes that occurrence ambiguous. */
+const NEAR_NEGATION = /\b(?:not|never|no|neither|hardly|without|isn'?t|wasn'?t|aren'?t|weren'?t|don'?t|doesn'?t|didn'?t|might|could|maybe|perhaps|probably|seems?|appears?)\s+(?:[\w'-]+\s+){0,3}$/i;
+
+/** True when at least one un-negated occurrence of the pattern appears in the excerpt. */
+function hasDirectionalPhrase(excerpt: string, pattern: RegExp): boolean {
+  const regex = new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`);
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(excerpt)) !== null) {
+    const prefix = excerpt.slice(Math.max(0, match.index - 40), match.index);
+    if (!NEAR_NEGATION.test(prefix)) return true;
+    if (match.index === regex.lastIndex) regex.lastIndex += 1;
+  }
+  return false;
+}
+
+/** Numeric wait times are directional: an hour+ or 30min+ is unfavorable; 14min or less is favorable. */
+function numericWaitDirection(excerpt: string): 1 | -1 | 0 {
+  const regex = /wait(?:ed|ing)?[^.!?]{0,24}?(\d{1,3})\s*(hours?|hours|mins?|minutes?)\b/gi;
+  let direction: 1 | -1 | 0 = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(excerpt)) !== null) {
+    const amount = Number(match[1]);
+    const directionForMatch = /hour/i.test(match[2]) ? (amount >= 1 ? -1 : 1) : amount >= 30 ? -1 : amount <= 14 ? 1 : 0;
+    if (direction && directionForMatch && direction !== directionForMatch) return 0;
+    if (directionForMatch) direction = directionForMatch;
+  }
+  return direction;
+}
+
 function polarity(item: EvidenceItem): 1 | -1 | 0 {
   const excerpt = item.excerpt;
   const rules = RULES[item.category];
-  const positive = rules.positive.test(excerpt);
-  // Remove supported negative phrases from negative matching to avoid double counting.
-  const remainder = excerpt.replace(rules.positive, "");
-  const negative = rules.negative.test(remainder);
-  // Ignore negation and conditional statements rather than infer intent or scope.
-  if (/\b(?:never|without|neither|hardly|maybe|might|could|if|although|but|however)\b/i.test(excerpt) || /\bnot\b/i.test(remainder)) return 0;
-  return positive === negative ? 0 : positive ? 1 : -1;
+  const positive = hasDirectionalPhrase(excerpt, rules.positive);
+  const negative = hasDirectionalPhrase(excerpt, rules.negative);
+  // Conflicting, negated or hedged signals within one excerpt are not scored.
+  if (positive !== negative) return positive ? 1 : -1;
+  if (positive && negative) return 0;
+  return item.category === "crowding" ? numericWaitDirection(excerpt) : 0;
 }
 
 function factor(category: RelevantSensoryCategory, items: EvidenceItem[]): FactorAnalysis {
@@ -69,6 +106,8 @@ export class KeywordSensoryAnalyzer implements SensoryAnalyzer {
       return true;
     }) : [];
     const factors = CATEGORIES.map((category) => factor(category, items));
+    // Eligibility follows the scoring spec: a factor is eligible when directional evidence produced a score.
+    // Confidence is reported separately and never zeroes a score.
     const eligible = factors.filter((entry): entry is FactorAnalysis & { score: number } => entry.score !== null);
     const totalWeight = eligible.reduce((sum, entry) => sum + FACTOR_WEIGHTS[entry.category], 0);
     const overallScore = eligible.length >= 3 ? Math.round(eligible.reduce((sum, entry) => sum + entry.score * FACTOR_WEIGHTS[entry.category], 0) / totalWeight) : null;

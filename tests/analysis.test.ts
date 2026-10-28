@@ -46,6 +46,13 @@ describe("sensory scoring", () => {
     const negation = analyzer.analyze(evidence(["The room was not quiet.", "It might be noisy."]));
     expect(negation.factors[0].score).toBeNull();
   });
+  test("scopes negation to the matched phrase and scores numeric wait times", () => {
+    const negated = analyzer.analyze(evidence(["The room was not quiet, but the music was loud."]));
+    expect(negated.factors[0].score).toBe(0); // "not quiet" is ignored; "loud" still counts
+    const waits = analyzer.analyze(evidence(["I waited 45 minutes to be seen.", "We waited just 5 minutes."]));
+    expect(waits.factors[2].score).toBe(50); // one long wait, one short wait
+    expect(waits.factors[2].confidence).toBe("low");
+  });
   test("preserves exact source text and is deterministic", () => {
     const original = "  The room was quiet.  ";
     const data = evidence([original]);

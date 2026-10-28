@@ -35,7 +35,7 @@ export function HeroPreview({ facility }: { facility: Facility }) {
         <ul className="mt-6 flex flex-col divide-y divide-border border-y border-border">
           {FACTOR_ORDER.map((key) => {
             const factor = factors[key]
-            const hasScore = factor.score !== null && factor.confidence !== 'limited'
+            const hasScore = factor.score !== null
             return (
               <li key={key} className="flex items-center justify-between gap-4 py-3">
                 <span className="text-[15px] text-foreground">{FACTOR_LABELS[key]}</span>
